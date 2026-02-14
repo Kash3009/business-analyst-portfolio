@@ -11,3 +11,8 @@ Business analyst case studies focused on process analysis, data-driven insights,
 **Tool used:** Power BI  
 **Project link:** [View project](https://bit.ly/4kp3CcO)
 
+## Sales Performance & KPI Analysis
+
+**Tool used:** Microsoft Excel  
+**Project link:** [Download Excel file] ([Sales Dashboard Project.xlsx](https://github.com/user-attachments/files/25317722/Sales.Dashboard.Project.xlsx))
+
