@@ -1,0 +1,366 @@
+---
+title: "Heart Halth Predictive Model"
+author: "Kashyap"
+date: "2025-05-25"
+---
+#Link Kaggle: https://www.kaggle.com/datasets/alexteboul/heart-disease-health-indicators-dataset
+
+#Drive Link - https://drive.google.com/drive/folders/1fdsFo06hrAq7Euragp0L32pUpjB9Q1x_?usp=sharing
+
+```{r}
+##Section 1 – Data Cleaning and Transformation
+
+# Load essential libraries
+library(tidyverse)
+library(janitor)
+
+
+# Read the dataset 
+data <- read_csv("heart_disease_health_indicators_BRFSS2015.csv")
+
+# Cleaning column names for consistency and easier manipulation
+data <- clean_names(data)
+
+# Convert binary variables from 0/1 to "No"/"Yes"
+binary_vars <- c("heart_diseaseor_attack", "high_bp", "high_chol", "chol_check", "smoker",
+                 "stroke", "phys_activity", "fruits", "veggies", "hvy_alcohol_consump",
+                 "any_healthcare", "no_docbc_cost", "diff_walk")
+data <- data %>%
+  mutate(across(all_of(binary_vars), ~ ifelse(. == 1, "Yes", "No")))
+
+
+# Recode diabetes responses into categorical labels
+data <- data %>%
+  mutate(diabetes = case_when(
+    diabetes == 0 ~ "No",
+    diabetes == 1 ~ "Yes",
+    diabetes == 2 ~ "Borderline",
+    diabetes == 3 ~ "During Pregnancy"
+  ))
+
+
+# Converting categorical numeric values into meaningful labels
+data <- data %>%
+  mutate(sex = ifelse(sex == 1, "Male", "Female"))
+
+# Convert Education levels categories
+data <- data %>%
+  mutate(education = factor(education,
+                            levels = 1:6,
+                            labels = c("No School", "Elementary", "Some High School", 
+                                       "High School Grad", "Some College", "Bachelor or Higher")))
+
+# Convert Income levels to ranges
+data <- data %>%
+  mutate(income = factor(income,
+                         levels = 1:8,
+                         labels = c("<10k", "10–15k", "15–20k", "20–25k", "25–35k", 
+                                    "35–50k", "50–75k", "75k+")))
+
+# Convert Age into age brackets
+data <- data %>%
+  mutate(age = factor(age,
+                      levels = 1:13,
+                      labels = c("18–24", "25–29", "30–34", "35–39", "40–44", 
+                                 "45–49", "50–54", "55–59", "60–64", "65–69", 
+                                 "70–74", "75–79", "80+")))
+
+# Convert General Health to scale
+data <- data %>%
+  mutate(gen_hlth = factor(gen_hlth,
+                           levels = 1:5,
+                           labels = c("Excellent", "Very Good", "Good", "Fair", "Poor")))
+
+# Convert Menthlth (days of poor mental health) into categories
+data <- data %>%
+  mutate(ment_hlth = factor(case_when(
+    ment_hlth <= 1 ~ "Excellent",
+    ment_hlth <= 7 ~ "Good",
+    ment_hlth <= 14 ~ "Moderate",
+    ment_hlth <= 30 ~ "Poor"
+  ), levels = c("Excellent", "Good", "Moderate", "Poor")))
+
+# Convert Physhlth (days of poor physical health) into categories
+data <- data %>%
+  mutate(phys_hlth = factor(case_when(
+    phys_hlth <= 1 ~ "Excellent",
+    phys_hlth <= 7 ~ "Good",
+    phys_hlth <= 14 ~ "Moderate",
+    phys_hlth <= 30 ~ "Poor"
+  ), levels = c("Excellent", "Good", "Moderate", "Poor")))
+
+data <- data %>%
+  rename(
+    HeartDisease = heart_diseaseor_attack,
+    HighBP = high_bp,
+    HighCholesterol = high_chol,
+    CholesterolCheck = chol_check,
+    BMI = bmi,
+    Smoker = smoker,
+    Stroke = stroke,
+    Diabetes = diabetes,
+    PhysicalActivity = phys_activity,
+    EatsFruitRegularly = fruits,
+    EatsVegetablesRegularly = veggies,
+    HeavyAlcoholConsumption = hvy_alcohol_consump,
+    HasHealthcareCoverage = any_healthcare,
+    AvoidedDoctorCost = no_docbc_cost,
+    GeneralHealth = gen_hlth,
+    MentalHealthDays = ment_hlth,
+    PhysicalHealthDays = phys_hlth,
+    DifficultyWalking = diff_walk,
+    Sex = sex,
+    Age = age,
+    EducationLevel = education,
+    IncomeLevel = income
+  )
+
+# View dataset structure
+data
+```
+#The dataset was cleaned and transformed to ensure usability, interpretability, and alignment with ethical modelling practices. We began by standardising column names using janitor::clean_names() to improve code consistency. Binary variables (e.g., Smoker, HighBP) were recoded from numeric (0/1) to descriptive labels ("No"/"Yes") to support human-readable analysis. Categorical variables like sex, education, income, and age were mapped to labelled factor levels based on BRFSS schema definitions, improving semantic clarity and enabling subgroup comparisons. GeneralHealth, MentalHealthDays, and PhysicalHealthDays were binned into clinically meaningful bands (“Excellent” to “Poor”) to assist downstream visualisation and modelling. Additionally, columns were renamed to more descriptive, domain-appropriate terms (e.g., phys_activity to PhysicalActivity) for readability. These steps collectively ensured that the dataset adheres to tidy data principles, supports ethical decision-making, and is well-prepared for interpretative modelling tasks in later sections.
+
+
+```{r}
+##### SECTION 2 – Symptom frequency analysis among heart disease patients
+
+# Select relevant symptom/risk factor variables
+symptom_vars <- c("HighBP", "HighCholesterol", "Smoker", "Stroke", "Diabetes", 
+                  "PhysicalActivity", "HeavyAlcoholConsumption", "DifficultyWalking")
+
+# Group by Heart Disease status and calculate the percentage of "Yes" for each symptom
+symptom_summary <- data %>%
+  group_by(HeartDisease) %>%
+  summarise(across(all_of(symptom_vars), 
+                   ~ mean(. == "Yes") * 100,  # Converts "Yes"/"No" to %Yes
+                   .names = "pct_{.col}")) %>%
+  pivot_longer(cols = starts_with("pct_"),
+               names_to = "Symptom",
+               names_prefix = "pct_",
+               values_to = "Percentage")
+
+# Create a dot plot comparing symptom prevalence by heart disease status
+ggplot(symptom_summary, aes(x = Percentage, y = reorder(Symptom, Percentage), color = HeartDisease)) +
+  geom_point(size = 3) +
+  labs(title = "Symptom Frequency by Heart Disease Status",
+       x = "Percentage of Respondents", y = "Symptom", color = "Heart Disease") +
+  theme_minimal()
+```
+
+#Analysed the prevalence of eight key risk factors across individuals with and without heart disease to identify symptoms with the strongest predictive potential. Using the group_by() and summarise(across()) functions, we calculated the percentage of “Yes” responses for each symptom within each heart disease category. The pivot_longer() function reshaped the output into a long format suitable for comparative visualisation. A dot plot was then created using ggplot2, allowing for intuitive visual contrast between heart disease and non-heart disease groups. Variables such as DifficultyWalking (41.5% vs 14.3%) and HighBP (75.0% vs 39.6%) showed large percentage gaps, highlighting their strong discriminative value. This step supports two key goals of our project: (1) validating the dataset’s internal structure and (2) selecting interpretable, high-impact predictors for our modelling framework.
+
+```{r}
+# Section 3 - Heart disease rate by age and gender 
+
+#Load necessary package
+library(dplyr)
+
+#Summarise proportion of heart disease by Age and Sex
+line_data <- data %>%
+  group_by(Age, Sex) %>%
+  summarise(HeartDiseaseRate = mean(HeartDisease == "Yes") * 100)
+
+# Create a dual-line plot to visualise the trend
+ggplot(line_data, aes(x = Age, y = HeartDiseaseRate, group = Sex, color = Sex)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(title = "Heart Disease Rate by Age and Gender",
+       x = "Age Group", y = "Heart Disease Rate (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+#Investigates how heart disease prevalence varies by age and gender, using grouped summary statistics and visualisation. The dataset is grouped by Age and Sex, and the proportion of individuals diagnosed with heart disease is calculated for each subgroup using mean(HeartDisease == "Yes"). This approach is statistically sound and interpretable, converting binary disease status into an understandable rate. A dual-line plot was created to highlight patterns across age categories. The plot reveals that heart disease rates increase sharply after age 50, with men consistently exhibiting higher prevalence in older age brackets, for example, 31% in men vs 20% in women in the 80+ group. This intersectional analysis supports nuanced insights into demographic risk stratification, which is crucial for public health interventions and gender-sensitive prevention strategies. Demonstrating the power of tidyverse tools for ethical, accessible health analytics. It also reinforces the project’s equity-aware focus by surfacing disparities that may otherwise be masked in aggregated data.
+
+```{r}
+
+# Section 4 -  BMI by Smoking & Heart Disease
+
+#Create a grouped boxplot of BMI by Smoking status and Heart Disease diagnosis
+ggplot(data, aes(x = Smoker, y = BMI, fill = HeartDisease)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "BMI Distribution by Smoking Status and Heart Disease",
+       x = "Smoking Status", y = "BMI", fill = "Heart Disease") +
+  theme_minimal()
+
+
+# Summarise key statistics count, mean, median, IQR
+bmi_summary <- data %>%
+  group_by(Smoker, HeartDisease) %>%
+  summarise(
+    Count = n(),
+    Mean_BMI = round(mean(BMI, na.rm = TRUE), 2),
+    Median_BMI = round(median(BMI, na.rm = TRUE), 2),
+    IQR_BMI = round(IQR(BMI, na.rm = TRUE), 2),
+    .groups = 'drop'
+  )
+
+# View the summary table
+bmi_summary
+```
+### Analyses the interaction between smoking, heart disease status, and BMI, one of the most actionable cardiovascular risk factors. A boxplot was generated to visualise BMI distributions across smoker vs non-smoker groups, segmented by heart disease diagnosis. This is complemented by a summary table displaying mean, median, and IQR for each subgroup, providing statistical context to support visual trends. The results reveal a clear pattern: individuals with heart disease consistently exhibit higher average BMI than those without, regardless of smoking status. For example, non-smokers with heart disease have a mean BMI of 29.7 compared to 28.2 in their healthier peers. Smokers show a similar trend 29.3 vs 28.4, highlighting that elevated BMI may contribute more to heart disease risk than smoking alone. Although interquartile ranges remain similar, the presence of upper outliers among heart disease patients suggests that extreme BMI values are more common in this group. This dual-analysis approach (visual + numerical) illustrates the importance of examining lifestyle risk factors interactively rather than in isolation. It reinforces BMI as a modifiable risk factor and provides nuanced insight for designing personalised prevention strategies. 
+
+
+```{r}
+##SECTION 5 - Socioeconomic Disparities in Symptom Prevalence
+
+# selecting key modifiable symptoms to analyse across socioeconomic status
+symptom_vars <- c("HighBP", "HighCholesterol", "Smoker", "Stroke", "Diabetes", 
+                  "PhysicalActivity", "HeavyAlcoholConsumption", "DifficultyWalking")
+
+# Analyse proportions by Income Level
+symptom_income <- data %>%
+  group_by(IncomeLevel) %>%
+  summarise(across(all_of(symptom_vars), 
+                   ~ mean(. == "Yes", na.rm = TRUE) * 100, 
+                   .names = "pct_{.col}")) %>%
+  pivot_longer(cols = starts_with("pct_"),
+               names_to = "Symptom",
+               names_prefix = "pct_",
+               values_to = "Percentage")
+
+# Plot by Income Level
+ggplot(symptom_income, aes(x = IncomeLevel, y = Percentage, fill = Symptom)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Symptom Prevalence by Income Level",
+       x = "Income Group",
+       y = "Percentage of Respondents",
+       fill = "Symptom") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Repeating analysis by Education Level
+symptom_education <- data %>%
+  group_by(EducationLevel) %>%
+  summarise(across(all_of(symptom_vars), 
+                   ~ mean(. == "Yes", na.rm = TRUE) * 100, 
+                   .names = "pct_{.col}")) %>%
+  pivot_longer(cols = starts_with("pct_"),
+               names_to = "Symptom",
+               names_prefix = "pct_",
+               values_to = "Percentage")
+
+#  Plot symptom prevalence by Education Level
+ggplot(symptom_education, aes(x = EducationLevel, y = Percentage, fill = Symptom)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Symptom Prevalence by Education Level",
+       x = "Education Level",
+       y = "Percentage of Respondents",
+       fill = "Symptom") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+###This section investigates how key modifiable risk factors for heart disease vary across different income and education levels, revealing crucial socioeconomic disparities. Using bar plots, we visualise the percentage of individuals reporting each symptom within each income and education group. The results show clear gradients: for example, DifficultyWalking affects 43.9% of those earning <$10k but only 6.0% in the $75k+ group. HighBP, smoking, and poor general health are all more common among individuals with no formal schooling compared to university-educated respondents. These insights validate the presence of entrenched health inequalities and reinforce public health literature on the social determinants of health. From a methodological perspective, this analysis uses the tidyverse to summarise and reshape data (via across() and pivot_longer()), followed by grouped bar charts to compare symptom distributions. The approach is highly relevant to policy discussions and system design, as it helps pinpoint which populations are most at risk and should be prioritised for targeted, preventative interventions. Overall, this work reflects ethical, equity-aware modelling and directly supports the project's goal: to develop interpretable, inclusive health tools that empower disadvantaged communities and encourage early action.
+
+```{r}
+# SECTION 6: Self-Assessment Tool Logistic Regression-Based
+
+# Step 1: Import the pre-cleaned dataset ( done in above sections)
+cleaned_data <- read_csv("cleaned_heart_disease_dataset.csv")
+
+# Step 2: Rename key columns for consistency 
+cleaned_data <- cleaned_data %>%
+  rename(
+    HeartDisease = heart_diseaseor_attack,
+    HighBP = high_bp,
+    HighCholesterol = high_chol,
+    Smoker = smoker,
+    Stroke = stroke,
+    Diabetes = diabetes,
+    PhysicalActivity = phys_activity,
+    DifficultyWalking = diff_walk,
+    GeneralHealth = gen_hlth,
+    Age = age,
+    Sex = sex
+  )
+
+# Step 3: Select top relevant predictors
+selected_data <- cleaned_data %>%
+  select(HeartDisease, HighBP, HighCholesterol, Smoker, Stroke, Diabetes,
+         PhysicalActivity, DifficultyWalking, GeneralHealth, Age, Sex)
+
+# Step 4: Convert categorical variables to numeric values for logistic regression
+selected_data <- selected_data %>%
+  mutate(
+    across(c(HeartDisease, HighBP, HighCholesterol, Smoker, Stroke,
+             Diabetes, PhysicalActivity, DifficultyWalking),
+           ~ ifelse(. == "Yes", 1, 0)),
+    
+    GeneralHealth = as.numeric(factor(GeneralHealth,
+                                      levels = c("Excellent", "Very Good", "Good", "Fair", "Poor"),
+                                      labels = c(1, 2, 3, 4, 5))),
+    
+    Age = as.numeric(age_map[Age]),
+    
+    Sex = ifelse(Sex == "Male", 1, 0)
+  )
+
+# Age brackets
+age_map <- c("18–24" = 21, "25–29" = 27, "30–34" = 32, "35–39" = 37,
+             "40–44" = 42, "45–49" = 47, "50–54" = 52, "55–59" = 57,
+             "60–64" = 62, "65–69" = 67, "70–74" = 72, "75–79" = 77, "80+" = 85)
+
+
+# Step 5: Train-test split (70% training data)
+set.seed(123)
+split_index <- sample(1:nrow(selected_data), size = 0.7 * nrow(selected_data))
+train_data <- selected_data[split_index, ]
+test_data <- selected_data[-split_index, ]
+
+# Step 6: Train logistic regression model to predict HeartDisease
+model <- glm(HeartDisease ~ ., data = train_data, family = binomial)
+
+# Step 6b: Visualize feature impact using logistic regression coefficients
+coeff_df <- summary(model)$coefficients[-1, , drop = FALSE]  # Drop intercept
+coeff_df <- as.data.frame(coeff_df)
+coeff_df$Feature <- rownames(coeff_df)
+
+ggplot(coeff_df, aes(x = reorder(Feature, Estimate), y = Estimate)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  coord_flip() +
+  labs(title = "Feature Impact on Heart Disease Risk",
+       x = "Feature",
+       y = "Logistic Regression Coefficient") +
+  theme_minimal()
+
+# Step 7: Define the self-assessment function
+assess_risk <- function(high_bp, high_chol, smoker, stroke, diabetes,
+                        phys_act, diff_walk, gen_health, age, sex) {
+  input <- data.frame(
+    HighBP = ifelse(high_bp == "Yes", 1, 0),
+    HighCholesterol = ifelse(high_chol == "Yes", 1, 0),
+    Smoker = ifelse(smoker == "Yes", 1, 0),
+    Stroke = ifelse(stroke == "Yes", 1, 0),
+    Diabetes = ifelse(diabetes == "Yes", 1, 0),
+    PhysicalActivity = ifelse(phys_act == "Yes", 1, 0),
+    DifficultyWalking = ifelse(diff_walk == "Yes", 1, 0),
+    GeneralHealth = as.numeric(factor(gen_health,
+                                      levels = c("Excellent", "Very Good", "Good", "Fair", "Poor"),
+                                      labels = c(1, 2, 3, 4, 5))),
+    Age = age,
+    Sex = ifelse(sex == "Male", 1, 0)
+  )
+  
+  prob <- predict(model, newdata = input, type = "response")
+  risk <- ifelse(prob > 0.5, "HIGH RISK", "LOW RISK")
+  return(paste(" Estimated Risk:", risk, "| Probability =", round(prob * 100, 1), "%"))
+
+}
+
+# Step 8: Test the tool
+assess_risk(
+  high_bp = "Yes",
+  high_chol = "Yes",
+  smoker = "Yes",
+  stroke = "Yes",
+  diabetes = "Yes",
+  phys_act = "No",
+  diff_walk = "No",
+  gen_health = "Poor",
+  age = 60,
+  sex = "Female"
+)
+
+```
+###A logistic regression model is trained to predict heart disease risk using selected behavioural, medical, and demographic features. The cleaned dataset is loaded and relevant variables are renamed for consistency. Key predictors are selected and transformed into numeric format suitable for modelling. Age groups are mapped to midpoint values, and categorical variables like general health and sex are encoded numerically. The data is split into training (70%) and testing (30%) sets. A logistic regression model is then fitted using the training set, and model coefficients are visualised to show the relative influence of each feature. Next, a assess_risk() function is defined to allow user input of lifestyle factors and return a personalised risk label (“HIGH RISK” or “LOW RISK”) along with the predicted probability. Finally, the tool is tested using sample inputs to demonstrate output generation. This confirms the tool’s basic functionality and sets the foundation for future deployment as an interactive self-assessment interface.
