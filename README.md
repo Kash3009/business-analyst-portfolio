@@ -16,6 +16,18 @@ Business analyst case studies demonstrating structured problem-solving, data-dri
 **Tool used:** Microsoft Excel  
 **Project link:** [Sales Dashboard Project.xlsx](https://github.com/user-attachments/files/25317743/Sales.Dashboard.Project.xlsx)
 
+## UI/UX Design Case Studies
+
+These projects demonstrate how user needs, product thinking, and structured problem-solving translate into practical design solutions.
+
+### Lighthouse Futures
+**Type:** UI/UX Product Case Study  
+**Case Study:** [View PDF](https://www.pdffiller.com/s/dnvNUtoLyS)
+
+### Bizbucks
+**Type:** UI/UX Product Case Study  
+**Case Study:** [View PDF](https://www.pdffiller.com/s/dnvNUtoLyS)
+
 ## Health Risk Analytics & Decision Support Case Study
 
 **Context:** Academic–to–Industry Analytics Case Study  
